@@ -2,7 +2,7 @@ import pygame
 
 clock = pygame.time.Clock()
 
-
+   
 pygame.init()
 screen = pygame.display.set_mode((956, 716))
 pygame.display.set_caption("Acoustic_Heist")
