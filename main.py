@@ -6,7 +6,6 @@
 import sys
 import os
 
-# Добавить корень проекта в sys.path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import pygame
@@ -34,8 +33,6 @@ from levels.level1 import LEVEL_1, PATROL_POINTS_1
 
 
 class Game:
-    """Главный класс игры."""
-    
     SCREEN_WIDTH = 956
     SCREEN_HEIGHT = 716
     CELL_SIZE = 64
@@ -45,7 +42,6 @@ class Game:
         pygame.init()
         pygame.display.set_caption("Acoustic Heist")
         
-        # Загрузить иконку
         try:
             icon = pygame.image.load("images/icon.png")
             pygame.display.set_icon(icon)
@@ -55,7 +51,6 @@ class Game:
         self.screen = pygame.display.set_mode((self.SCREEN_WIDTH, self.SCREEN_HEIGHT))
         self.clock = pygame.time.Clock()
         
-        # Загрузить фоновую музыку
         try:
             pygame.mixer.init()
             bg_sound = pygame.mixer.Sound("sounds/bg.mp3")
@@ -64,34 +59,27 @@ class Game:
         except Exception as e:
             print(f"Не удалось загрузить музыку: {e}")
         
-        # Инициализация ядра
         self.world = World()
         self.event_bus = EventBus()
-        
-        # Загрузить уровень
         self.grid = load_grid_from_string(LEVEL_1, self.CELL_SIZE)
         
-        # Создать системы
-        self.camera = CameraSystem(self.world, self.SCREEN_WIDTH, self.SCREEN_HEIGHT)
+        self.camera_system = CameraSystem(self.world, self.SCREEN_WIDTH, self.SCREEN_HEIGHT)
         self.detection_system = DetectionSystem(self.world, self.event_bus, self.grid)
         self.input_system = InputSystem(self.world, self.event_bus, self.grid)
         self.ai_system = AISystem(self.world, self.event_bus, self.grid, self.detection_system)
         self.collision_system = CollisionSystem(self.world, self.event_bus, self.grid)
-        self.render_system = RenderSystem(self.world, self.screen, self.grid, self.camera)
+        self.render_system = RenderSystem(
+            self.world, self.screen, self.grid, self.camera_system.get_camera())
         
-        # Создать сущности уровня
         self._create_level_entities()
         
-        # Подписаться на события
         self.event_bus.subscribe(Events.LEVEL_COMPLETED, self._on_level_completed)
         self.event_bus.subscribe(Events.PLAYER_DIED, self._on_player_died)
         
         self.running = True
-        self.game_state = "playing"  # playing, won, lost
+        self.game_state = "playing"
     
     def _create_level_entities(self):
-        """Создать сущности из данных уровня."""
-        # Найти позицию игрока
         player_pos = self._find_char(LEVEL_1, "P")
         if player_pos:
             player = self.world.create_entity()
@@ -109,7 +97,6 @@ class Game:
             self.world.register(player, PerceptionComponent)
             self.world.register(player, NoiseEmitterComponent)
         
-        # Найти врагов
         enemy_positions = []
         lines = [line for line in LEVEL_1.strip().split("\n") if line.strip()]
         for y, line in enumerate(lines):
@@ -121,10 +108,10 @@ class Game:
             enemy = self.world.create_entity()
             enemy.add(TransformComponent())
             enemy.get(TransformComponent).set_grid_position(pos[0], pos[1], self.CELL_SIZE)
-            enemy.get(TransformComponent).speed = 140.0
+            enemy.get(TransformComponent).speed = 110.0
             enemy.add(SpriteComponent(image_path="images/enemy.png", width=64, height=64))
             enemy.add(PerceptionComponent(
-                vision_range=7, vision_angle=120.0, hearing_sensitivity=0.15))
+                vision_range=6, vision_angle=110.0, hearing_sensitivity=0.12))
             patrol_pts = PATROL_POINTS_1.get(idx, [])
             enemy.add(AIStateComponent(patrol_points=patrol_pts))
             self.world.register(enemy, TransformComponent)
@@ -132,7 +119,6 @@ class Game:
             self.world.register(enemy, PerceptionComponent)
             self.world.register(enemy, AIStateComponent)
         
-        # Создать монеты
         coin_positions = []
         for y, line in enumerate(lines):
             for x, char in enumerate(line):
@@ -166,7 +152,6 @@ class Game:
         print("Игрок пойман!")
     
     def run(self):
-        """Главный игровой цикл."""
         while self.running:
             dt = self.clock.tick(self.FPS) / 1000.0
             
@@ -185,7 +170,7 @@ class Game:
                 self.ai_system.update(dt)
                 self.collision_system.update(dt)
             
-            self.camera.update(dt)
+            self.camera_system.update(dt)
             self.render_system.update(dt)
             
             if self.game_state == "won":
@@ -211,18 +196,17 @@ class Game:
         self.screen.blit(hint, hint_rect)
     
     def _restart(self):
-        """Перезапустить уровень."""
         self.world = World()
         self.event_bus = EventBus()
         self._create_level_entities()
-        self.camera = CameraSystem(self.world, self.SCREEN_WIDTH, self.SCREEN_HEIGHT)
+        self.camera_system = CameraSystem(self.world, self.SCREEN_WIDTH, self.SCREEN_HEIGHT)
         self.detection_system = DetectionSystem(self.world, self.event_bus, self.grid)
         self.input_system = InputSystem(self.world, self.event_bus, self.grid)
         self.ai_system = AISystem(
             self.world, self.event_bus, self.grid, self.detection_system)
         self.collision_system = CollisionSystem(self.world, self.event_bus, self.grid)
         self.render_system = RenderSystem(
-            self.world, self.screen, self.grid, self.camera)
+            self.world, self.screen, self.grid, self.camera_system.get_camera())
         self.event_bus.subscribe(Events.LEVEL_COMPLETED, self._on_level_completed)
         self.event_bus.subscribe(Events.PLAYER_DIED, self._on_player_died)
         self.game_state = "playing"
